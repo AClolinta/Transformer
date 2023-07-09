@@ -26,20 +26,6 @@ class Transformer(nn.Module):
 
         return dec_logit.view(-1, dec_logit.size(-1)), enc_self_attention, dec_self_attention, dec_enc_attention
 
-    class Encoder(nn.Module):
-        def __init__(self) :
-            # The size is the lentgh of the input language
-            self.src_emb = nn.Embedding(src_vocab_size, d_model).cuda()
-            self.pos_emb = PositionalEncoding(d_model).cuda()
-            self.layers = nn.ModuleList([EncoderLayer().cuda() for _ in range(n_layers)]).cuda()
-
-    class Decoder(nn.Module):
-        def __init__(self,d_model,dropout=0.1,max_len=5000) :
-            # The size is the lentgh of the output language
-            self.tgt_emb = nn.Embedding(tgt_vocab_size, d_model).cuda()
-            self.pos_emb = PositionalEncoding(d_model).cuda()
-            self.layers = nn.ModuleList([DecoderLayer().cuda() for _ in range(n_layers)]).cuda()
-
     class PositionalEncoding(nn.Module):
         def __init__(self, d_model, max_seq_len = 200):
             super().__init__()
@@ -60,3 +46,49 @@ class Transformer(nn.Module):
             # x: [seq_len x batch_size x d_model]
             x = x + self.pe[:x.size(0), :]
             return x
+
+
+    class Encoder(nn.Module):
+        def __init__(self) :
+            # The size is the lentgh of the input language
+            self.src_emb = nn.Embedding(src_vocab_size, d_model).cuda()
+            self.pos_emb = PositionalEncoding(d_model).cuda()
+            self.layers = nn.ModuleList([EncoderLayer().cuda() for _ in range(n_layers)]).cuda()
+
+        def forward(self, enc_input):
+            #  enc_input: [batch_size x source_length]
+            enc_outputs = self.src_emb(enc_input) # [batch_size x source_length x d_model]
+            enc_outputs = self.pos_emb(enc_outputs.transpose(0, 1)).transpose(0, 1) # [batch_size x source_length x d_model]
+            enc_self_attention_mask = get_attn_pad_mask(enc_input, enc_input).cuda() # [batch_size x source_length x source_length]
+
+            enc_self_attentions = []
+            for layer in self.layers :
+                enc_outputs, enc_self_attention = layer(enc_outputs,enc_self_attention_mask)
+                enc_self_attentions.append(enc_self_attention)
+            return enc_outputs,enc_self_attention
+        
+    class EncoderLayer(nn.Module):
+        def __int__(self):
+            super(EncoderLayer, self).__int__()
+            self.enc_self_attention = MultiHeadAttention().cuda()
+            self.pos_ffn = PoswiseFeedForwardNet().cuda()
+
+        def forward(self, enc_inputs, enc_self_attention_mask):
+            # enc_inputs: [batch_size x source_length x d_model]
+            # enc_self_attention_mask: [batch_size x source_length x source_length]
+            # enc_outputs: [batch_size x source_length x d_model]
+            # enc_self_attention: [batch_size x source_length x source_length]
+            # Q,K,V,MASKE
+            enc_outputs, atten = self.enc_self_attention(enc_inputs, enc_inputs, enc_inputs, enc_self_attention_mask)
+            enc_outputs = self.pos_ffn(enc_outputs) # [batch_size x source_length x d_model]
+            return enc_outputs, atten
+
+
+    class Decoder(nn.Module):
+        def __init__(self,d_model,dropout=0.1,max_len=5000) :
+            # The size is the lentgh of the output language
+            self.tgt_emb = nn.Embedding(tgt_vocab_size, d_model).cuda()
+            self.pos_emb = PositionalEncoding(d_model).cuda()
+            self.layers = nn.ModuleList([DecoderLayer().cuda() for _ in range(n_layers)]).cuda()
+
+
