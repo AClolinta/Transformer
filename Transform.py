@@ -27,6 +27,9 @@ class MultiHeadAttention(nn.Module):
         self.W_V = nn.Linear(d_model, d_v * n_heads, bias=False)
         self.fc = nn.Linear(n_heads * d_v, d_model, bias=False)
 
+    def forward(self,input_q,input_k,input_v, attn_mask):
+
+
 
 class PositionalEncoding(nn.Module):
     def __init__(self, d_model, max_seq_len=200):
